@@ -1,37 +1,6 @@
 #include "NeuralNetwork.h"
 
-/*
-class NeuralNetwork
-{
-public:
-	NeuralNetwork(int topologySize, int* topology);
-	~NeuralNetwork();
-	NeuralNetwork(const NeuralNetwork& other);
-	NeuralNetwork& operator=(const NeuralNetwork& other);
-	NeuralNetwork(NeuralNetwork&& other);
-	NeuralNetwork& operator=(NeuralNetwork&& other);
-
-	void Print();
-
-private:
-	int topologySize;
-	int* topology;
-
-	int weightsSize;
-	float* weights;	// 3d
-
-	int biasesSize;
-	float* biases;	// 2d
-
-	float* trainingActivationValues;	// 2d
-	float* trainingPreactivationValues;	// 2d
-
-	float* dActivationValues;		// 2d
-	float* dPreactivationValues;	// 2d
-};
-*/
-
-NeuralNetwork::NeuralNetwork(int topologySize, int* topology)
+NeuralNetwork::NeuralNetwork(int topologySize, int* topology, float lamda)
 {
 	this->topologySize = topologySize;
 	this->topology = new int[topologySize];
@@ -50,6 +19,9 @@ NeuralNetwork::NeuralNetwork(int topologySize, int* topology)
 	trainingActivationValues = new float[biasesSize + topology[0]];
 	trainingPreactivationValues = new float[biasesSize];
 
+	dWeights = new float[weightsSize];
+	dBiases = new float[biasesSize];
+
 	dActivationValues = new float[biasesSize + topology[0]];
 	dPreactivationValues = new float[biasesSize];
 
@@ -62,6 +34,8 @@ NeuralNetwork::NeuralNetwork(int topologySize, int* topology)
 	{
 		biases[i] = random.NormalRandom();
 	}
+
+	this->lamda = lamda;
 }
 
 NeuralNetwork::~NeuralNetwork()
@@ -71,6 +45,8 @@ NeuralNetwork::~NeuralNetwork()
 	delete[] biases;
 	delete[] trainingActivationValues;
 	delete[] trainingPreactivationValues;
+	delete[] dWeights;
+	delete[] dBiases;
 	delete[] dActivationValues;
 	delete[] dPreactivationValues;
 }
@@ -90,10 +66,22 @@ NeuralNetwork::NeuralNetwork(const NeuralNetwork& other)
 	memcpy(biases, other.biases, biasesSize * sizeof(float));
 
 	trainingActivationValues = new float[biasesSize + topology[0]];
+	memcpy(trainingActivationValues, other.trainingActivationValues, (biasesSize + topology[0]) * sizeof(float));
 	trainingPreactivationValues = new float[biasesSize];
+	memcpy(trainingPreactivationValues, other.trainingPreactivationValues, biasesSize * sizeof(float));
+
+	dWeights = new float[weightsSize];
+	memcpy(dWeights, other.dWeights, weightsSize * sizeof(float));
+
+	dBiases = new float[biasesSize];
+	memcpy(dBiases, other.dBiases, biasesSize * sizeof(float));
 
 	dActivationValues = new float[biasesSize + topology[0]];
+	memcpy(dActivationValues, other.dActivationValues, (biasesSize + topology[0]) * sizeof(float));
 	dPreactivationValues = new float[biasesSize];
+	memcpy(dPreactivationValues, other.dPreactivationValues, biasesSize * sizeof(float));
+
+	lamda = other.lamda;
 }
 
 NeuralNetwork& NeuralNetwork::operator=(const NeuralNetwork& other)
@@ -105,6 +93,8 @@ NeuralNetwork& NeuralNetwork::operator=(const NeuralNetwork& other)
 		delete[] biases;
 		delete[] trainingActivationValues;
 		delete[] trainingPreactivationValues;
+		delete[] dWeights;
+		delete[] dBiases;
 		delete[] dActivationValues;
 		delete[] dPreactivationValues;
 
@@ -121,16 +111,28 @@ NeuralNetwork& NeuralNetwork::operator=(const NeuralNetwork& other)
 		memcpy(biases, other.biases, biasesSize * sizeof(float));
 
 		trainingActivationValues = new float[biasesSize + topology[0]];
+		memcpy(trainingActivationValues, other.trainingActivationValues, (biasesSize + topology[0]) * sizeof(float));
 		trainingPreactivationValues = new float[biasesSize];
+		memcpy(trainingPreactivationValues, other.trainingPreactivationValues, biasesSize * sizeof(float));
+
+		dWeights = new float[weightsSize];
+		memcpy(dWeights, other.dWeights, weightsSize * sizeof(float));
+
+		dBiases = new float[biasesSize];
+		memcpy(dBiases, other.dBiases, biasesSize * sizeof(float));
 
 		dActivationValues = new float[biasesSize + topology[0]];
+		memcpy(dActivationValues, other.dActivationValues, (biasesSize + topology[0]) * sizeof(float));
 		dPreactivationValues = new float[biasesSize];
+		memcpy(dPreactivationValues, other.dPreactivationValues, biasesSize * sizeof(float));
+
+		lamda = other.lamda;
 	}
 
 	return *this;
 }
 
-NeuralNetwork::NeuralNetwork(NeuralNetwork&& other)
+NeuralNetwork::NeuralNetwork(NeuralNetwork&& other) noexcept
 {
 	topologySize = other.topologySize;
 	topology = other.topology;
@@ -150,14 +152,22 @@ NeuralNetwork::NeuralNetwork(NeuralNetwork&& other)
 	trainingPreactivationValues = other.trainingPreactivationValues;
 	other.trainingPreactivationValues = nullptr;
 
+	dWeights = other.dWeights;
+	other.dWeights = nullptr;
+
+	dBiases = other.dBiases;
+	other.dBiases = nullptr;
+
 	dActivationValues = other.dActivationValues;
 	other.dActivationValues = nullptr;
 
 	dPreactivationValues = other.dPreactivationValues;
 	other.dPreactivationValues = nullptr;
+
+	lamda = other.lamda;
 }
 
-NeuralNetwork& NeuralNetwork::operator=(NeuralNetwork&& other)
+NeuralNetwork& NeuralNetwork::operator=(NeuralNetwork&& other) noexcept
 {
 	if (this != &other)
 	{
@@ -166,6 +176,8 @@ NeuralNetwork& NeuralNetwork::operator=(NeuralNetwork&& other)
 		delete[] biases;
 		delete[] trainingActivationValues;
 		delete[] trainingPreactivationValues;
+		delete[] dWeights;
+		delete[] dBiases;
 		delete[] dActivationValues;
 		delete[] dPreactivationValues;
 
@@ -187,11 +199,19 @@ NeuralNetwork& NeuralNetwork::operator=(NeuralNetwork&& other)
 		trainingPreactivationValues = other.trainingPreactivationValues;
 		other.trainingPreactivationValues = nullptr;
 
+		dWeights = other.dWeights;
+		other.dWeights = nullptr;
+
+		dBiases = other.dBiases;
+		other.dBiases = nullptr;
+
 		dActivationValues = other.dActivationValues;
 		other.dActivationValues = nullptr;
 
 		dPreactivationValues = other.dPreactivationValues;
 		other.dPreactivationValues = nullptr;
+
+		lamda = other.lamda;
 	}
 
 	return *this;
@@ -230,4 +250,51 @@ void NeuralNetwork::Print()
 		printf("\n");
 	}
 	printf("\n");
+
+	printf("Lamda: %f\n", lamda);
+}
+
+float NeuralNetwork::LinearTahn(float x)
+{
+	return (x <= 1 && x >= -1) * x + (x > 1) - (x < -1);
+}
+
+float NeuralNetwork::DLinearTahn(float x, float derivative)
+{
+	return (x <= 1 && x >= -1) + (x > 1) * (derivative < 0) * lamda + (x < -1) * (derivative > 0) * lamda;
+}
+
+float NeuralNetwork::LinearSigmoid(float x)
+{
+	return (x <= 0.5f && x >= -0.5f) * (x + 0.5f) + (x > 0.5f);
+}
+
+float NeuralNetwork::DLinearSigmoid(float x, float derivative)
+{
+	return (x <= 0.5f && x >= -0.5f) + (x > 0.5f) * (derivative < 0) * lamda + (x < -0.5f) * (derivative > 0) * lamda;
+}
+
+void NeuralNetwork::FeedForward(float* input)
+{
+	for (int i = 0; i < topology[0]; i++)
+	{
+		trainingActivationValues[i] = input[i];
+	}
+
+	for (int i = 0; i < topologySize - 1; i++)
+	{
+		for (int j = 0; j < topology[i + 1]; j++)
+		{
+			trainingPreactivationValues[j] = biases[j];
+			for (int k = 0; k < topology[i]; k++)
+			{
+				trainingPreactivationValues[j] += trainingActivationValues[k] * weights[k * topology[i + 1] + j];
+			}
+			trainingActivationValues[topology[0] + j] = LinearTahn(trainingPreactivationValues[j]);
+		}
+		for (int j = 0; j < topology[i + 1]; j++)
+		{
+			trainingActivationValues[topology[0] + j] = trainingActivationValues[topology[0] + j];
+		}
+	}
 }
