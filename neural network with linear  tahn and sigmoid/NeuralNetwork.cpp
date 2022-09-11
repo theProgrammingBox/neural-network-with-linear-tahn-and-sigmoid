@@ -16,8 +16,8 @@ NeuralNetwork::NeuralNetwork(int topologySize, int* topology, float lamda)
 	weights = new float[weightsSize];
 	biases = new float[biasesSize];
 
-	trainingActivationValues = new float[biasesSize + topology[0]];
-	trainingPreactivationValues = new float[biasesSize];
+	activationValues = new float[biasesSize + topology[0]];
+	preactivationValues = new float[biasesSize];
 
 	dWeights = new float[weightsSize];
 	dBiases = new float[biasesSize];
@@ -43,8 +43,8 @@ NeuralNetwork::~NeuralNetwork()
 	delete[] topology;
 	delete[] weights;
 	delete[] biases;
-	delete[] trainingActivationValues;
-	delete[] trainingPreactivationValues;
+	delete[] activationValues;
+	delete[] preactivationValues;
 	delete[] dWeights;
 	delete[] dBiases;
 	delete[] dActivationValues;
@@ -65,10 +65,10 @@ NeuralNetwork::NeuralNetwork(const NeuralNetwork& other)
 	biases = new float[biasesSize];
 	memcpy(biases, other.biases, biasesSize * sizeof(float));
 
-	trainingActivationValues = new float[biasesSize + topology[0]];
-	memcpy(trainingActivationValues, other.trainingActivationValues, (biasesSize + topology[0]) * sizeof(float));
-	trainingPreactivationValues = new float[biasesSize];
-	memcpy(trainingPreactivationValues, other.trainingPreactivationValues, biasesSize * sizeof(float));
+	activationValues = new float[biasesSize + topology[0]];
+	memcpy(activationValues, other.activationValues, (biasesSize + topology[0]) * sizeof(float));
+	preactivationValues = new float[biasesSize];
+	memcpy(preactivationValues, other.preactivationValues, biasesSize * sizeof(float));
 
 	dWeights = new float[weightsSize];
 	memcpy(dWeights, other.dWeights, weightsSize * sizeof(float));
@@ -91,8 +91,8 @@ NeuralNetwork& NeuralNetwork::operator=(const NeuralNetwork& other)
 		delete[] topology;
 		delete[] weights;
 		delete[] biases;
-		delete[] trainingActivationValues;
-		delete[] trainingPreactivationValues;
+		delete[] activationValues;
+		delete[] preactivationValues;
 		delete[] dWeights;
 		delete[] dBiases;
 		delete[] dActivationValues;
@@ -110,10 +110,10 @@ NeuralNetwork& NeuralNetwork::operator=(const NeuralNetwork& other)
 		biases = new float[biasesSize];
 		memcpy(biases, other.biases, biasesSize * sizeof(float));
 
-		trainingActivationValues = new float[biasesSize + topology[0]];
-		memcpy(trainingActivationValues, other.trainingActivationValues, (biasesSize + topology[0]) * sizeof(float));
-		trainingPreactivationValues = new float[biasesSize];
-		memcpy(trainingPreactivationValues, other.trainingPreactivationValues, biasesSize * sizeof(float));
+		activationValues = new float[biasesSize + topology[0]];
+		memcpy(activationValues, other.activationValues, (biasesSize + topology[0]) * sizeof(float));
+		preactivationValues = new float[biasesSize];
+		memcpy(preactivationValues, other.preactivationValues, biasesSize * sizeof(float));
 
 		dWeights = new float[weightsSize];
 		memcpy(dWeights, other.dWeights, weightsSize * sizeof(float));
@@ -146,11 +146,11 @@ NeuralNetwork::NeuralNetwork(NeuralNetwork&& other) noexcept
 	biases = other.biases;
 	other.biases = nullptr;
 
-	trainingActivationValues = other.trainingActivationValues;
-	other.trainingActivationValues = nullptr;
+	activationValues = other.activationValues;
+	other.activationValues = nullptr;
 
-	trainingPreactivationValues = other.trainingPreactivationValues;
-	other.trainingPreactivationValues = nullptr;
+	preactivationValues = other.preactivationValues;
+	other.preactivationValues = nullptr;
 
 	dWeights = other.dWeights;
 	other.dWeights = nullptr;
@@ -174,8 +174,8 @@ NeuralNetwork& NeuralNetwork::operator=(NeuralNetwork&& other) noexcept
 		delete[] topology;
 		delete[] weights;
 		delete[] biases;
-		delete[] trainingActivationValues;
-		delete[] trainingPreactivationValues;
+		delete[] activationValues;
+		delete[] preactivationValues;
 		delete[] dWeights;
 		delete[] dBiases;
 		delete[] dActivationValues;
@@ -193,11 +193,11 @@ NeuralNetwork& NeuralNetwork::operator=(NeuralNetwork&& other) noexcept
 		biases = other.biases;
 		other.biases = nullptr;
 
-		trainingActivationValues = other.trainingActivationValues;
-		other.trainingActivationValues = nullptr;
+		activationValues = other.activationValues;
+		other.activationValues = nullptr;
 
-		trainingPreactivationValues = other.trainingPreactivationValues;
-		other.trainingPreactivationValues = nullptr;
+		preactivationValues = other.preactivationValues;
+		other.preactivationValues = nullptr;
 
 		dWeights = other.dWeights;
 		other.dWeights = nullptr;
@@ -227,13 +227,14 @@ void NeuralNetwork::Print()
 	printf("\n\n");
 
 	printf("Weights:\n");
+	int weightIndex = 0;
 	for (int i = 0; i < topologySize; i++)
 	{
-		for (int j = 0; j < topology[i]; j++)
+		for (int j = 0; j < topology[i + 1]; j++)
 		{
-			for (int k = 0; k < topology[i + 1]; k++)
+			for (int k = 0; k < topology[i]; k++)
 			{
-				printf("%f ", weights[j * topology[i + 1] + k]);
+				printf("%f ", weights[weightIndex++]);
 			}
 			printf("\n");
 		}
@@ -241,11 +242,12 @@ void NeuralNetwork::Print()
 	}
 
 	printf("Biases:\n");
-	for (int i = 0; i < topologySize; i++)
+	int biasIndex = 0;
+	for (int i = 1; i < topologySize; i++)
 	{
-		for (int j = 0; j < topology[i + 1]; j++)
+		for (int j = 0; j < topology[i]; j++)
 		{
-			printf("%f ", biases[j]);
+			printf("%f ", biases[biasIndex++]);
 		}
 		printf("\n");
 	}
@@ -274,27 +276,35 @@ float NeuralNetwork::DLinearSigmoid(float x, float derivative)
 	return (x <= 0.5f && x >= -0.5f) + (x > 0.5f) * (derivative < 0) * lamda + (x < -0.5f) * (derivative > 0) * lamda;
 }
 
-void NeuralNetwork::FeedForward(float* input)
+void NeuralNetwork::FeedForward(float* input, float* output)
 {
-	for (int i = 0; i < topology[0]; i++)
-	{
-		trainingActivationValues[i] = input[i];
-	}
+	memcpy(activationValues, input, topology[0] * sizeof(float));
 
+	int activationStartIndex;
+	int activationIndex = 0;
+	int preactivationIndex = 0;
+	int weightIndex = 0;
 	for (int i = 0; i < topologySize - 1; i++)
 	{
+		activationStartIndex = activationIndex;
 		for (int j = 0; j < topology[i + 1]; j++)
 		{
-			trainingPreactivationValues[j] = biases[j];
+			activationIndex = activationStartIndex;
+			//printf("%f\n", biases[preactivationIndex]);
+			preactivationValues[preactivationIndex] = biases[preactivationIndex];
+
 			for (int k = 0; k < topology[i]; k++)
 			{
-				trainingPreactivationValues[j] += trainingActivationValues[k] * weights[k * topology[i + 1] + j];
+				//printf("%f * %f\n", activationValues[activationIndex], weights[weightIndex]);
+				preactivationValues[preactivationIndex] += weights[weightIndex++] * activationValues[activationIndex++];
 			}
-			trainingActivationValues[topology[0] + j] = LinearTahn(trainingPreactivationValues[j]);
-		}
-		for (int j = 0; j < topology[i + 1]; j++)
-		{
-			trainingActivationValues[topology[0] + j] = trainingActivationValues[topology[0] + j];
+			//printf("= %f\n", LinearTahn(preactivationValues[preactivationIndex]));
+			activationValues[preactivationIndex + topology[0]] = LinearTahn(preactivationValues[preactivationIndex]);
+
+			preactivationIndex++;
+			//printf("\n");
 		}
 	}
+
+	memcpy(output, activationValues + biasesSize + topology[0] - topology[topologySize - 1], topology[topologySize - 1] * sizeof(float));
 }

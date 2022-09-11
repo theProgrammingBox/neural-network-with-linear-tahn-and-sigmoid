@@ -17,7 +17,7 @@ public:
 	float DLinearTahn(float x, float derivative);
 	float LinearSigmoid(float x);
 	float DLinearSigmoid(float x, float derivative);
-	void FeedForward(float* input);
+	void FeedForward(float* input, float* output);
 
 private:
 	int topologySize;
@@ -29,8 +29,8 @@ private:
 	int biasesSize;
 	float* biases;	// 2d
 
-	float* trainingActivationValues;	// 2d
-	float* trainingPreactivationValues;	// 2d
+	float* activationValues;	// 2d
+	float* preactivationValues;	// 2d
 
 	float* dWeights;	// 3d
 	float* dBiases;	// 2d
